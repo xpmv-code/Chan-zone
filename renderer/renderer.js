@@ -48,9 +48,13 @@ let timerId = null;
 let session = 1;
 let completedSessions = 0;
 let sessionStart = null;
+let calendarSessionId = null; // 同一计时会话的稳定日历幂等键
+const calendarRequests = new Map();
+const calendarPendingSessionIds = new Set();
+const finishingSessions = new Set();
 
-// 时间戳计时（抗 setInterval 漂移 / 后台节流 / 系统休眠）
-let segStartTs = 0;       // 当前运行段起点（Date.now()，ms）
+// 单调时钟计时（抗 setInterval 漂移、系统校时、后台节流与系统休眠）
+let segStartTs = 0;       // 当前运行段起点（performance.now()，ms）
 let frozenElapsed = 0;    // 正计时：暂停前已累计的秒数
 let segRemaining = 0;     // 倒计时：本段开始时的剩余秒数
 let lastDisplaySec = 0;   // 上次刷新显示的秒数（用于检测后台/休眠后的大跳变）
@@ -150,7 +154,10 @@ function showToast(msg, type = '') {
 
 // ── Save-mid-session button visibility ───────────────────────────────────────
 function updateSaveBtn() {
-  const show = !running && sessionStart !== null &&
+  const sessionPending = calendarSessionId && (
+    calendarPendingSessionIds.has(calendarSessionId) || finishingSessions.has(calendarSessionId)
+  );
+  const show = !running && !sessionPending && sessionStart !== null &&
     (mode === 'stopwatch' ? elapsed > 0 : remaining < totalSecs);
   saveBtnEl.style.display = show ? 'flex' : 'none';
 }
@@ -371,11 +378,11 @@ function playRinBell() {
 }
 
 // ── 构造日历事件备注：模式 / 轮次 / 时长 / 起止时间 ───────────────────────────
-function buildEventDesc(startISO, endISO) {
+function buildEventDesc(startISO, endISO, eventMode = mode, eventSession = session) {
   const modeName = {
     focus: '专注', short: '小憩', long: '长休',
     stopwatch: '正计时', countdown: '倒计时',
-  }[mode] || '专注';
+  }[eventMode] || '专注';
   const s0 = new Date(startISO), s1 = new Date(endISO);
   const sec = Math.max(0, Math.round((s1 - s0) / 1000));
   const h = Math.floor(sec / 3600),
@@ -391,36 +398,62 @@ function buildEventDesc(startISO, endISO) {
   const hms = (d) => `${hm(d)}:${p2(d.getSeconds())}`;
   const tf = sec < 60 ? hms : hm;   // 不足 1 分钟显示到秒
   const dateStr = `${s0.getFullYear()}-${p2(s0.getMonth() + 1)}-${p2(s0.getDate())} ${tf(s0)}–${tf(s1)}`;
-  const roundStr = mode === 'focus' ? `（第 ${session} 轮）` : '';
+  const roundStr = eventMode === 'focus' ? `（第 ${eventSession} 轮）` : '';
   return `由 Chan zone 记录 · ${modeName}${roundStr} · 时长 ${dur} · ${dateStr}`;
 }
 
 // ── Calendar sync ─────────────────────────────────────────────────────────────
-async function syncCalendar(startISO, endISO, task, isManual = false) {
+async function syncCalendar(startISO, endISO, task, isManual = false, context = {}) {
   if (!cfg.calEnable || !window.electronAPI) {
     if (isManual) showToast('请先在设置中开启日历同步', 'red');
-    return;
+    return null;
   }
-  const title = mode === 'focus'     ? `专注：${task}`
-              : mode === 'countdown' ? `倒计时：${task}`
-              : mode === 'stopwatch' ? `正计时：${task}`
+
+  // 所有日历字段都基于同一份会话快照，避免 await 前后切换模式污染记录。
+  const eventMode = context.mode || mode;
+  const eventSession = context.session ?? session;
+  const eventSessionId = context.sessionId || `session-${startISO}`;
+  const title = eventMode === 'focus'     ? `专注：${task}`
+              : eventMode === 'countdown' ? `倒计时：${task}`
+              : eventMode === 'stopwatch' ? `正计时：${task}`
               : '休息';
-  const desc = buildEventDesc(startISO, endISO);
-  showToast('正在记录到日历…');
-  const r = await window.electronAPI.addToCalendar({
-    title, startISO, endISO, calName: cfg.calName, desc,
-  });
-  if (r.ok) {
-    showToast(r.mode === 'silent' ? '已记录到日历' : '请在弹窗中点击「加入」确认', 'green');
-  } else {
-    showToast(r.error ? `日历写入失败：${r.error.slice(0, 24)}` : '日历写入失败，请检查权限', 'red');
+  const desc = buildEventDesc(startISO, endISO, eventMode, eventSession);
+  const payload = {
+    sessionId: eventSessionId, title, startISO, endISO, calName: cfg.calName, desc,
+  };
+
+  let request = calendarRequests.get(eventSessionId);
+  const isNewRequest = !request;
+  if (isNewRequest) {
+    showToast('正在记录到日历…');
+    calendarPendingSessionIds.add(eventSessionId);
+    updateSaveBtn();
+    request = window.electronAPI.addToCalendar(payload)
+      .catch(err => ({ ok: false, error: err?.message || String(err) }));
+    calendarRequests.set(eventSessionId, request);
+  }
+
+  try {
+    const r = await request;
+    if (r?.ok) {
+      showToast(r.mode === 'silent' ? '已记录到日历' : '请在弹窗中点击「加入」确认', 'green');
+    } else {
+      showToast(r?.error ? `日历写入失败：${r.error.slice(0, 56)}` : '日历写入失败，请检查权限', 'red');
+      if (calendarRequests.get(eventSessionId) === request) calendarRequests.delete(eventSessionId);
+    }
+    return r || { ok: false, error: '日历写入未返回结果' };
+  } finally {
+    if (isNewRequest) {
+      calendarPendingSessionIds.delete(eventSessionId);
+      updateSaveBtn();
+    }
   }
 }
 
 // ── Tick ─────────────────────────────────────────────────────────────────────
 function tick() {
-  // 以墙上时间戳重算，setInterval 只负责刷新节奏，不参与累计
-  const seg = Math.max(0, Math.floor((Date.now() - segStartTs) / 1000));
+  // 用单调时钟重算持续时间；setInterval 只负责刷新节奏，不参与累计
+  const seg = Math.max(0, Math.floor((performance.now() - segStartTs) / 1000));
   let displaySec;
   if (mode === 'stopwatch') {
     elapsed = frozenElapsed + seg;
@@ -468,26 +501,53 @@ function notifyEnd() {
 }
 
 async function finishTimer() {
-  // 自然结束：先同步日历，再决定轮换或停留
-  if (sessionStart) {
-    await syncCalendar(
-      sessionStart.toISOString(), new Date().toISOString(),
-      ($('task-input').value.trim() || '专注工作'),
-    );
-    sessionStart = null;
-  }
-  if (mode === 'countdown') {
-    // 自由倒计时：结束不轮换，停留在 00:00，播放 / 重置可重新开始
-    showToast('倒计时结束');
+  // 在 await 前冻结会话信息；用户重置或切换模式后，旧完成回调不得操作新会话。
+  const completedMode = mode;
+  const completedSession = sessionStart;
+  const completedSessionId = calendarSessionId;
+  const completedSessionNo = session;
+  const startISO = completedSession ? completedSession.toISOString() : null;
+  const endISO = new Date().toISOString();
+  const task = $('task-input').value.trim() || '专注工作';
+  let calendarResult = null;
+
+  if (completedSessionId) {
+    finishingSessions.add(completedSessionId);
     updateSaveBtn();
-    notifyTray();
-    return;
   }
-  onComplete();
+  try {
+    if (completedSession) {
+      calendarResult = await syncCalendar(startISO, endISO, task, false, {
+        mode: completedMode,
+        session: completedSessionNo,
+        sessionId: completedSessionId,
+      });
+      if (sessionStart !== completedSession || calendarSessionId !== completedSessionId || mode !== completedMode) {
+        return;
+      }
+      sessionStart = null;
+      calendarSessionId = null;
+    }
+
+    if (mode !== completedMode) return;
+    if (completedMode === 'countdown') {
+      // 自由倒计时结束固定为 00:00；保留日历同步结果（尤其是 .ics 导入确认提示）。
+      remaining = 0;
+      updateDisplay();
+      if (calendarResult === null) showToast('倒计时结束');
+      updateSaveBtn();
+      notifyTray();
+      return;
+    }
+    onComplete(completedMode);
+  } finally {
+    if (completedSessionId) finishingSessions.delete(completedSessionId);
+    updateSaveBtn();
+  }
 }
 
-function onComplete() {
-  if (mode === 'focus') {
+function onComplete(completedMode = mode) {
+  if (completedMode === 'focus') {
     completedSessions++;
     if (completedSessions % 4 === 0) {
       session = 1;           // reset counter for next cycle
@@ -496,7 +556,7 @@ function onComplete() {
       session++;
       setMode('short');
     }
-  } else if (mode === 'short' || mode === 'long') {
+  } else if (completedMode === 'short' || completedMode === 'long') {
     setMode('focus');
   }
 }
@@ -508,7 +568,7 @@ function setMode(m) {
     b.classList.toggle('active', b.dataset.mode === m)
   );
   clearInterval(timerId); timerId = null;
-  running = false; sessionStart = null;
+  running = false; sessionStart = null; calendarSessionId = null;
   elapsed = 0;
   segStartTs = 0; frozenElapsed = 0; lastTrayText = '';
   appEl.classList.remove('running');
@@ -546,9 +606,12 @@ function togglePlay() {
       if (mode === 'focus')     durInput.value = cfg.focusMins;
       if (mode === 'countdown') durInput.value = cfg.countdownMins;
     }
-    if (!sessionStart) sessionStart = new Date();
-    // 时间戳基准：本段从当前显示值开始
-    segStartTs = Date.now();
+    if (!sessionStart) {
+      sessionStart = new Date();
+      calendarSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+    // 用单调时钟计量持续时间，系统修改日期/时间不会改变计时长度。
+    segStartTs = performance.now();
     segRemaining = remaining;
     lastDisplaySec = mode === 'stopwatch' ? elapsed : remaining;
     appEl.classList.add('running');
@@ -558,7 +621,7 @@ function togglePlay() {
   } else {
     // 暂停：按时间戳立即结算本段，冻结显示值
     if (segStartTs) {
-      const seg = Math.max(0, Math.floor((Date.now() - segStartTs) / 1000));
+      const seg = Math.max(0, Math.floor((performance.now() - segStartTs) / 1000));
       if (mode === 'stopwatch') elapsed = frozenElapsed + seg;
       else remaining = Math.max(0, segRemaining - seg);
     }
@@ -578,7 +641,7 @@ function togglePlay() {
 // ── Reset ─────────────────────────────────────────────────────────────────────
 function resetTimer() {
   clearInterval(timerId); timerId = null;
-  running = false; sessionStart = null;
+  running = false; sessionStart = null; calendarSessionId = null;
   elapsed = 0;
   segStartTs = 0; frozenElapsed = 0; lastTrayText = '';
   appEl.classList.remove('running');
@@ -599,10 +662,21 @@ function resetTimer() {
 // ── Skip ─────────────────────────────────────────────────────────────────────
 function skipNext() {
   clearInterval(timerId); timerId = null;
-  running = false; sessionStart = null;
+  running = false; sessionStart = null; calendarSessionId = null;
   segStartTs = 0; frozenElapsed = 0; lastTrayText = '';
   appEl.classList.remove('running');
   setPlayIcon(false);
+
+  if (mode === 'countdown') {
+    // 跳过自由倒计时即真正结束，不能保留旧 remaining 供下次继续。
+    remaining = 0;
+    updateDisplay();
+    updateSaveBtn();
+    notifyTray();
+    showToast('倒计时结束');
+    return;
+  }
+
   updateSaveBtn();
   finishTimer();
 }
@@ -655,7 +729,9 @@ async function testCalendar() {
   });
   calDot.className = 'cal-indicator ' + (r.ok ? 'ok' : 'err');
   calText.textContent = r.ok
-    ? '连接成功，测试事件已写入'
+    ? (r.mode === 'ics'
+      ? '已打开导入文件，请确认后才会添加测试事件'
+      : '连接成功，测试事件已写入')
     : (r.error?.replace(/\s+/g, ' ').slice(0, 56) || '连接失败，请检查日历权限');
 }
 
@@ -736,11 +812,27 @@ durInput.addEventListener('change', () => {
 
 // Manual save button
 saveBtnEl.addEventListener('click', async () => {
-  if (!sessionStart) return;
+  if (!sessionStart || !calendarSessionId) return;
+  const savedSession = sessionStart;
+  const savedSessionId = calendarSessionId;
+  const savedMode = mode;
+  const savedSessionNo = session;
+  if (calendarPendingSessionIds.has(savedSessionId) || finishingSessions.has(savedSessionId)) return;
+
   const end = new Date();
   const task = $('task-input').value.trim() || '专注工作';
-  await syncCalendar(sessionStart.toISOString(), end.toISOString(), task, true);
-  sessionStart = null;
+  const result = await syncCalendar(savedSession.toISOString(), end.toISOString(), task, true, {
+    mode: savedMode,
+    session: savedSessionNo,
+    sessionId: savedSessionId,
+  });
+
+  // 只清理本次保存对应且仍处于暂停状态的会话；绝不清除后来启动的新计时。
+  if (result?.ok && sessionStart === savedSession && calendarSessionId === savedSessionId &&
+      mode === savedMode && !running && !finishingSessions.has(savedSessionId)) {
+    sessionStart = null;
+    calendarSessionId = null;
+  }
   updateSaveBtn();
 });
 
