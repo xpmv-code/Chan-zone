@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chan zone · 全屏</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;300;400&family=EB+Garamond:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="fullscreen.css">
+</head>
+<body class="light">
+  <div class="fs-stage">
+    <div class="fs-task" id="fs-task">专注工作</div>
+
+    <div class="fs-ring-wrap">
+      <svg class="fs-ring" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet">
+        <circle class="fs-track" cx="300" cy="300" r="250"/>
+        <path class="fs-progress" id="fs-progress"
+              d="M 300 50 A 250 250 0 1 0 300 550 A 250 250 0 1 0 300 50"
+              stroke-dasharray="1570.80" stroke-dashoffset="0"/>
+      </svg>
+
+      <div class="fs-center" id="fs-center">
+        <div class="fs-time" id="fs-time">25:00</div>
+        <div class="flip-clock" id="flip-clock" hidden></div>
+        <div class="fs-label" id="fs-label">第 1 轮</div>
+      </div>
+    </div>
+
+    <div class="fs-quote">
+      <div class="fs-quote-text" id="fs-quote-text"></div>
+      <div class="fs-quote-author" id="fs-quote-author"></div>
+    </div>
+  </div>
+
+  <div class="fs-hint" id="fs-hint">点击数字切换当前时间 · 点击空白或按 ESC 退出</div>
+  <script src="fullscreen.js"></script>
+</body>
+</html>

@@ -19,7 +19,27 @@
       <span>Chan zone</span>
     </span>
     <div class="titlebar-right">
+      <button class="icon-btn" id="btn-theme" title="黑夜模式">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btn-pin" title="钉在最上层">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 17v5"/>
+          <path d="M9 3v6l-4 4h14l-4-4V3"/>
+          <line x1="12" y1="3" x2="12" y2="6"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="btn-compact" title="极简模式">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3"/>
+          <path d="M21 8h-3a2 2 0 0 1-2-2V3"/>
+          <path d="M3 16h3a2 2 0 0 1 2 2v3"/>
+          <path d="M16 21v-3a2 2 0 0 1 2-2h3"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="btn-fullscreen" title="全屏显示">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
           <path d="M16 3h3a2 2 0 0 1 2 2v3"/>
@@ -42,6 +62,20 @@
   <div class="task-area">
     <input class="task-input" id="task-input" type="text"
            value="专注工作" placeholder="输入工作事项…" maxlength="28" spellcheck="false">
+    <div class="task-chips" id="task-chips">
+      <button type="button" class="chip" data-full="行测 · 言语理解">言语理解</button>
+      <button type="button" class="chip" data-full="行测 · 判断推理">判断推理</button>
+      <button type="button" class="chip" data-full="行测 · 资料分析">资料分析</button>
+      <button type="button" class="chip" data-full="行测 · 数量关系">数量关系</button>
+      <button type="button" class="chip" data-full="行测 · 常识判断">常识判断</button>
+      <button type="button" class="chip" data-full="申论 · 归纳概括">申论概括</button>
+      <button type="button" class="chip" data-full="申论 · 综合分析">申论分析</button>
+      <button type="button" class="chip" data-full="申论 · 提出对策">申论对策</button>
+      <button type="button" class="chip" data-full="申论 · 大作文">申论作文</button>
+      <button type="button" class="chip" data-full="时政 · 每日积累">时政积累</button>
+      <button type="button" class="chip" data-full="面试 · 真题演练">面试演练</button>
+      <button type="button" class="chip" data-full="真题 · 整套模考">真题模考</button>
+    </div>
   </div>
 
   <!-- ── Mode Tabs ── -->
@@ -49,31 +83,21 @@
     <button class="mode-btn active" data-mode="focus">专注</button>
     <button class="mode-btn" data-mode="short">小憩</button>
     <button class="mode-btn" data-mode="long">长休</button>
+    <button class="mode-btn" data-mode="stopwatch">正计时</button>
+    <button class="mode-btn" data-mode="countdown">倒计时</button>
   </div>
 
   <!-- ── Clock ── -->
   <div class="clock-face">
     <svg class="clock-svg" viewBox="0 0 220 220">
-      <defs>
-        <!-- Brushstroke distortion filter for enso -->
-        <filter id="enso-brush" x="-10%" y="-10%" width="120%" height="120%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.038 0.028"
-                        numOctaves="2" seed="12" result="noise"/>
-          <feDisplacementMap in="SourceGraphic" in2="noise"
-                             scale="2.6" xChannelSelector="R" yChannelSelector="G"/>
-        </filter>
-      </defs>
+      <!-- Enso ring: real progress ring (counter-clockwise, starts at 12 o'clock) -->
+      <!-- r=97, circumference≈609.47；无滤镜，保证边缘平滑无锯齿 -->
+      <path class="enso" id="enso-progress"
+            d="M 110 13 A 97 97 0 1 0 110 207 A 97 97 0 1 0 110 13"
+            stroke-dasharray="609.47" stroke-dashoffset="0"/>
 
-      <!-- Enso ring: open brushstroke circle (Suzuki Daisetsu's ensō) -->
-      <!-- r=97, circumference≈609.7 → dasharray 568 gap 42 ≈ 335° visible, 25° gap -->
-      <circle class="enso" cx="110" cy="110" r="97"
-              stroke-dasharray="568 42" stroke-dashoffset="10"
-              filter="url(#enso-brush)"/>
-
-      <!-- Thin inner progress track + arc -->
+      <!-- Thin inner track (static) -->
       <circle class="track"    cx="110" cy="110" r="86"/>
-      <circle class="progress" id="progress-ring" cx="110" cy="110" r="86"
-              stroke-dasharray="540.35" stroke-dashoffset="0"/>
     </svg>
 
     <!-- Inner disc: plain background (no backdrop-filter inside transparent window) -->
@@ -85,7 +109,7 @@
     </div>
   </div>
 
-  <!-- ── Duration (focus mode only) ── -->
+  <!-- ── Duration (focus & countdown only) ── -->
   <div class="duration-row" id="duration-row">
     <span class="dur-label">时长</span>
     <input class="dur-input" id="dur-input" type="number" min="1" max="120" value="25">
@@ -138,7 +162,7 @@
 
   <!-- ── Zen Quote ── -->
   <div class="quote" id="quote">需要的不多，想要的太多。</div>
-  <div class="quote-author">— 圣严法师 · 108自在语</div>
+  <div class="quote-author" id="quote-author">— 圣严法师 · 108自在语</div>
 
   <!-- ══ Settings Panel ══ -->
   <div class="settings-panel" id="settings-panel">
@@ -169,6 +193,11 @@
         <div class="setting-row">
           <span class="setting-row-label">长休</span>
           <input class="setting-input" id="s-long"  type="number" min="1" max="60"  value="15">
+          <span class="s-unit">分</span>
+        </div>
+        <div class="setting-row">
+          <span class="setting-row-label">倒计时</span>
+          <input class="setting-input" id="s-countdown" type="number" min="1" max="999" value="10">
           <span class="s-unit">分</span>
         </div>
       </div>
