@@ -228,6 +228,13 @@ ipcMain.on('fs-state', (_, data) => {
   }
 });
 
+// 全屏控制按钮只向主渲染进程发送指令，确保所有计时状态仍由唯一计时器维护。
+ipcMain.on('fs-timer-control', (_, action) => {
+  if (!['toggle', 'reset', 'skip'].includes(action)) return;
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
+  mainWindow.webContents.send('fs-timer-command', action);
+});
+
 // ── 每日一句：一言 hitokoto（主进程走网络，避开 CSP/CORS；分类 d/e/f/j/k/l）──
 ipcMain.handle('fetch-hitokoto', async () => {
   const url = 'https://v1.hitokoto.cn/?c=d&c=e&c=f&c=j&c=k&c=l';

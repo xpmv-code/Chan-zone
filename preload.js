@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTheme:       (dark) => ipcRenderer.send('set-theme', dark),
   openFullscreen:  (dark) => ipcRenderer.send('fs-open', dark),
   closeFullscreen: ()    => ipcRenderer.send('fs-close'),
+  controlTimer:    (action) => ipcRenderer.send('fs-timer-control', action),
+  onTimerControl:  (callback) => ipcRenderer.on('fs-timer-command', (_, action) => callback(action)),
   sendFsState:     (data) => ipcRenderer.send('fs-state', data),
   onFsTick:        (cb)  => ipcRenderer.on('fs-tick', (_, data) => cb(data)),
   onFsOpened:      (cb)  => ipcRenderer.on('fs-opened', () => cb()),

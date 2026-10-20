@@ -32,7 +32,18 @@
     </div>
   </div>
 
-  <div class="fs-hint" id="fs-hint">点击数字切换当前时间 · 点击空白或按 ESC 退出</div>
+  <div class="fs-controls" id="fs-controls" role="group" aria-label="计时控制">
+    <button class="fs-control fs-control-secondary" id="fs-reset" type="button" aria-label="重置计时" title="重置计时">
+      <span aria-hidden="true">↻</span><span>重置</span>
+    </button>
+    <button class="fs-control fs-control-primary" id="fs-play" type="button" aria-label="开始计时" title="开始/暂停计时">
+      <span class="fs-control-symbol" id="fs-play-symbol" aria-hidden="true">▶</span><span id="fs-play-label">开始</span>
+    </button>
+    <button class="fs-control fs-control-secondary" id="fs-skip" type="button" aria-label="跳过当前阶段" title="跳过当前阶段">
+      <span aria-hidden="true">»</span><span>跳过</span>
+    </button>
+  </div>
+  <div class="fs-hint" id="fs-hint">右侧按钮控制计时 · 点击数字切换当前时间 · 点击空白或按 ESC 退出</div>
   <script src="fullscreen.js"></script>
 </body>
 </html>

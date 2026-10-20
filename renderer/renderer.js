@@ -746,6 +746,12 @@ $('btn-compact').addEventListener('click',         () => window.electronAPI?.tog
 $('btn-close').addEventListener('click', () => window.electronAPI?.closeWindow());
 $('btn-min').addEventListener('click',   () => window.electronAPI?.minimizeWindow());
 window.electronAPI?.onCompactChanged?.(setCompactMode);
+window.electronAPI?.onTimerControl?.((action) => {
+  if (action === 'toggle') togglePlay();
+  else if (action === 'reset') resetTimer();
+  else if (action === 'skip') skipNext();
+  sendFsState();
+});
 
 // ── 钉在最上层 ────────────────────────────────────────────────────────────────
 function setPinState(pinned) {

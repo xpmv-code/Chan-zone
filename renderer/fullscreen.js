@@ -9,6 +9,12 @@ const timeEl = $('fs-time');
 const clockEl = $('flip-clock');
 const labelEl = $('fs-label');
 const centerEl = $('fs-center');
+const controlsEl = $('fs-controls');
+const playButton = $('fs-play');
+const playSymbol = $('fs-play-symbol');
+const playLabel = $('fs-play-label');
+const resetButton = $('fs-reset');
+const skipButton = $('fs-skip');
 let lastModeLabel = '';
 
 // ── 主窗口计时状态渲染 ──
@@ -22,7 +28,13 @@ function render(d) {
   $('fs-quote-author').textContent = d.quoteAuthor || '';
   document.body.classList.toggle('dark', !!d.dark);
   document.body.classList.toggle('light', !d.dark);
-  document.body.classList.toggle('running', !!d.running);
+  const isRunning = !!d.running;
+  document.body.classList.toggle('running', isRunning);
+  playSymbol.textContent = isRunning ? 'Ⅱ' : '▶';
+  playLabel.textContent = isRunning ? '暂停' : '开始';
+  playButton.setAttribute('aria-label', isRunning ? '暂停计时' : '开始计时');
+  playButton.title = isRunning ? '暂停计时' : '开始计时';
+  skipButton.hidden = d.mode === 'stopwatch';
   const ratio = Math.max(0, Math.min(1, d.ratio == null ? 1 : d.ratio));
   progress.style.strokeDashoffset = (CIRC * (1 - ratio)).toFixed(2);
 }
@@ -152,6 +164,25 @@ function toggleView() {
 centerEl.addEventListener('click', (e) => {
   e.stopPropagation();
   toggleView();
+});
+
+// ── 全屏控制直接指挥主窗口计时器，不在全屏页另行累计时间 ──
+controlsEl.addEventListener('click', (e) => e.stopPropagation());
+function sendTimerControl(action) {
+  window.electronAPI?.controlTimer?.(action);
+  showHint();
+}
+playButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sendTimerControl('toggle');
+});
+resetButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sendTimerControl('reset');
+});
+skipButton.addEventListener('click', (e) => {
+  e.stopPropagation();
+  sendTimerControl('skip');
 });
 
 // ── 退出：点击空白或按 ESC ──

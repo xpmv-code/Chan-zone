@@ -276,6 +276,85 @@ body.clock-mode .fs-ring {
   100% { transform: rotateX(0deg); }
 }
 
+/* ── 全屏计时控制：右侧竖向排列，避免遮挡每日一言 ── */
+.fs-controls {
+  position: fixed;
+  z-index: 10;
+  top: 50%;
+  right: clamp(22px, 3.5vw, 64px);
+  left: auto;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(10px, 1.5vh, 16px);
+  white-space: nowrap;
+}
+
+.fs-control {
+  min-width: 108px;
+  min-height: clamp(42px, 4.4vh, 52px);
+  padding: 0 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid var(--track);
+  border-radius: 999px;
+  font: inherit;
+  font-size: clamp(12px, 1.35vmin, 16px);
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--bg-1) 78%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 5px 22px rgba(0, 0, 0, 0.045);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.25s ease, opacity 0.25s ease;
+}
+
+.fs-control span[aria-hidden="true"] {
+  font-family: Arial, sans-serif;
+  font-size: 1.15em;
+  line-height: 1;
+}
+
+.fs-control-primary {
+  color: #fff;
+  border-color: transparent;
+  background: var(--accent);
+  box-shadow: 0 5px 24px rgba(229, 84, 30, 0.18);
+}
+
+.fs-control:hover { transform: translateY(-2px); }
+.fs-control:active { transform: translateY(0) scale(0.97); }
+.fs-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.fs-control[hidden] { display: none !important; }
+
+@media (max-width: 1100px) {
+  .fs-ring-wrap { width: 54vmin; height: 54vmin; }
+  .fs-controls { right: 22px; }
+  .fs-control { min-width: 96px; padding: 0 12px; gap: 7px; }
+  .fs-quote { padding: 0 23vw 0 8vw; }
+}
+
+@media (max-width: 760px) {
+  .fs-ring-wrap { width: 48vmin; height: 48vmin; }
+  .fs-controls { right: 12px; gap: 9px; }
+  .fs-control { min-width: 82px; min-height: 40px; padding: 0 8px; gap: 5px; font-size: 11px; }
+  .fs-quote { padding: 0 26vw 0 7vw; }
+}
+
+@media (max-height: 820px) {
+  .fs-ring-wrap { width: min(58vmin, 72vw); height: min(58vmin, 72vw); }
+  .fs-quote { bottom: 5vh; }
+}
+
+@media (max-height: 620px) {
+  .fs-ring-wrap { width: min(50vmin, 68vw); height: min(50vmin, 68vw); }
+  .fs-quote { bottom: 4vh; }
+}
 /* ── 退出提示 ── */
 .fs-hint {
   position: fixed;
